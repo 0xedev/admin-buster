@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useReadContract, useSendAndConfirmTransaction } from "thirdweb/react";
 import { prepareContractCall } from "thirdweb";
-import { contract, contractABI } from "@/constants/contract";
+import { contract } from "@/constants/contract";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
@@ -32,24 +32,22 @@ export function ResolveMarketList() {
       params: [],
     });
 
-  // Fetch all markets at once
-  const marketQueries = Array.from(
-    { length: marketCount ? Number(marketCount) : 0 },
-    (_, i) => ({
+  // Maximum number of markets to query (to limit hooks)
+  const MAX_MARKETS = 50;
+
+  // Create useReadContract calls for each market up to MAX_MARKETS
+  const marketResults = Array.from({ length: MAX_MARKETS }, (_, i) => {
+    return useReadContract({
       contract,
       method:
         "function getMarketInfo(uint256 _marketId) view returns (string question, string optionA, string optionB, uint256 endTime, uint8 outcome, uint256 totalOptionAShares, uint256 totalOptionBShares, bool resolved)",
       params: [BigInt(i)],
-    })
-  );
-
-  // Use useReadContract for each market individually
-  const marketResults = marketQueries.map((query) =>
-    useReadContract({
-      ...query,
-      queryOptions: { enabled: !!marketCount && !isMarketCountLoading },
-    })
-  );
+      queryOptions: {
+        enabled:
+          !!marketCount && !isMarketCountLoading && i < Number(marketCount),
+      },
+    });
+  });
 
   // Process market data when available
   useEffect(() => {
@@ -61,7 +59,8 @@ export function ResolveMarketList() {
     const marketData: (Market & { id: number })[] = [];
     let allLoaded = true;
 
-    marketResults.forEach(({ data }, index) => {
+    for (let i = 0; i < Number(marketCount) && i < MAX_MARKETS; i++) {
+      const { data } = marketResults[i];
       if (
         data &&
         Array.isArray(data) &&
@@ -73,7 +72,7 @@ export function ResolveMarketList() {
         typeof data[7] === "boolean"
       ) {
         marketData.push({
-          id: index,
+          id: i,
           question: data[0],
           optionA: data[1],
           optionB: data[2],
@@ -83,7 +82,7 @@ export function ResolveMarketList() {
       } else {
         allLoaded = false;
       }
-    });
+    }
 
     if (allLoaded && marketData.length === Number(marketCount)) {
       setMarkets(marketData.sort((a, b) => a.id - b.id)); // Ensure consistent order
