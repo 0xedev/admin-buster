@@ -32,63 +32,67 @@ export function ResolveMarketList() {
       params: [],
     });
 
-  // Maximum number of markets to query (to limit hooks)
-  const MAX_MARKETS = 50;
-
-  // Create useReadContract calls for each market up to MAX_MARKETS
-  const marketResults = Array.from({ length: MAX_MARKETS }, (_, i) => {
-    return useReadContract({
-      contract,
-      method:
-        "function getMarketInfo(uint256 _marketId) view returns (string question, string optionA, string optionB, uint256 endTime, uint8 outcome, uint256 totalOptionAShares, uint256 totalOptionBShares, bool resolved)",
-      params: [BigInt(i)],
-      queryOptions: {
-        enabled:
-          !!marketCount && !isMarketCountLoading && i < Number(marketCount),
-      },
-    });
-  });
-
-  // Process market data when available
+  // Fetch market data
   useEffect(() => {
-    if (isMarketCountLoading || !marketCount) {
-      setIsLoading(true);
-      return;
-    }
-
-    const marketData: (Market & { id: number })[] = [];
-    let allLoaded = true;
-
-    for (let i = 0; i < Number(marketCount) && i < MAX_MARKETS; i++) {
-      const { data } = marketResults[i];
-      if (
-        data &&
-        Array.isArray(data) &&
-        data.length === 8 &&
-        typeof data[0] === "string" &&
-        typeof data[1] === "string" &&
-        typeof data[2] === "string" &&
-        typeof data[3] === "bigint" &&
-        typeof data[7] === "boolean"
-      ) {
-        marketData.push({
-          id: i,
-          question: data[0],
-          optionA: data[1],
-          optionB: data[2],
-          endTime: data[3],
-          resolved: data[7],
-        });
-      } else {
-        allLoaded = false;
+    const fetchMarkets = async () => {
+      if (!marketCount || isMarketCountLoading) {
+        setIsLoading(true);
+        return;
       }
-    }
 
-    if (allLoaded && marketData.length === Number(marketCount)) {
-      setMarkets(marketData.sort((a, b) => a.id - b.id)); // Ensure consistent order
-      setIsLoading(false);
-    }
-  }, [marketResults, marketCount, isMarketCountLoading]);
+      setIsLoading(true);
+      try {
+        const count = Number(marketCount);
+        const marketPromises = Array.from({ length: count }, (_, i) =>
+          useReadContract({
+            contract,
+            method:
+              "function getMarketInfo(uint256 _marketId) view returns (string question, string optionA, string optionB, uint256 endTime, uint8 outcome, uint256 totalOptionAShares, uint256 totalOptionBShares, bool resolved)",
+            params: [BigInt(i)],
+          })
+        );
+
+        const results = await Promise.all(marketPromises);
+        const marketData: (Market & { id: number })[] = results.map(
+          (data, i) => {
+            if (
+              data &&
+              Array.isArray(data) &&
+              data.length === 8 &&
+              typeof data[0] === "string" &&
+              typeof data[1] === "string" &&
+              typeof data[2] === "string" &&
+              typeof data[3] === "bigint" &&
+              typeof data[7] === "boolean"
+            ) {
+              return {
+                id: i,
+                question: data[0],
+                optionA: data[1],
+                optionB: data[2],
+                endTime: data[3],
+                resolved: data[7],
+              };
+            }
+            throw new Error(`Invalid market data for ID ${i}`);
+          }
+        );
+
+        setMarkets(marketData.sort((a, b) => a.id - b.id)); // Ensure consistent order
+      } catch (error) {
+        console.error("Failed to fetch markets:", error);
+        toast({
+          title: "Error",
+          description: "Failed to load markets. Check console for details.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchMarkets();
+  }, [marketCount, isMarketCountLoading, toast]);
 
   const handleResolveMarket = async (
     marketId: number,
