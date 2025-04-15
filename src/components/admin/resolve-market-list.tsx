@@ -17,7 +17,7 @@ interface Market {
   id: number;
   question: string;
   optionA: string;
-  optionB: bigint;
+  optionB: string;
   endTime: bigint;
   resolved: boolean;
 }
@@ -74,13 +74,18 @@ export function ResolveMarketList() {
         id: Number(args.marketId),
         question: args.question,
         optionA: args.optionA,
-        optionB: BigInt(args.optionB),
+        optionB: args.optionB,
         endTime: args.endTime,
         resolved: false, // Initially not resolved
       };
     });
 
-    setMarkets(processedMarkets);
+    // Ensure we don't have duplicate IDs in our markets array
+    const uniqueMarkets = Array.from(
+      new Map(processedMarkets.map((market) => [market.id, market])).values()
+    );
+
+    setMarkets(uniqueMarkets);
     setIsLoading(false);
   }, [marketCreatedEvents]);
 
@@ -137,7 +142,7 @@ export function ResolveMarketList() {
                 id: i,
                 question: result[0],
                 optionA: result[1],
-                optionB: BigInt(result[2]),
+                optionB: result[2],
                 endTime: result[3],
                 resolved: result[7],
               });
@@ -147,7 +152,12 @@ export function ResolveMarketList() {
           }
         }
 
-        setMarkets(fetchedMarkets);
+        // Ensure we don't have duplicate IDs in our markets array
+        const uniqueMarkets = Array.from(
+          new Map(fetchedMarkets.map((market) => [market.id, market])).values()
+        );
+
+        setMarkets(uniqueMarkets);
       } catch (error) {
         console.error("Failed to fetch markets:", error);
         toast({
@@ -203,17 +213,12 @@ export function ResolveMarketList() {
     );
   }
 
-  // Deduplicate markets by id before rendering
-  const uniqueMarkets = Array.from(
-    new Map(markets.map((m) => [m.id, m])).values()
-  );
-
   return (
     <div className="space-y-4">
-      {uniqueMarkets.length === 0 ? (
+      {markets.length === 0 ? (
         <p>No markets available.</p>
       ) : (
-        uniqueMarkets.map((market) => (
+        markets.map((market) => (
           <Card key={market.id}>
             <CardHeader>
               <CardTitle>{market.question}</CardTitle>
