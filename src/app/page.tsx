@@ -12,15 +12,15 @@ export const metadata: Metadata = {
   other: {
     "fc:frame": JSON.stringify({
       version: "next",
-      imageUrl: "https://buster-mkt.vercel.app/icon.jpg",
+      imageUrl: "https://admin-buster.vercel.app/icon.jpg",
       button: {
         title: "Forecast",
         action: {
           type: "launch_frame",
           name: "Forecast",
-          iconUrl: "https://buster-mkt.vercel.app/icon1.jpg",
+          iconUrl: "https://admin-buster.vercel.app/icon1.jpg",
           url: "https://buster-mkt.vercel.app",
-          splashImageUrl: "https://buster-mkt.vercel.app/icon.jpg",
+          splashImageUrl: "https://admin-buster.vercel.app/icon.jpg",
           splashBackgroundColor: "#ffffff",
         },
       },
