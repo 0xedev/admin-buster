@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useReadContract, useSendAndConfirmTransaction } from "thirdweb/react";
 import { prepareContractCall } from "thirdweb";
-import { contract } from "@/constants/contract";
+import { contract, contractABI } from "@/constants/contract";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
@@ -25,43 +25,71 @@ export function ResolveMarketList() {
   const [isLoading, setIsLoading] = useState(true);
 
   // Fetch market count
-  const { data: marketCount } = useReadContract({
-    contract,
-    method: "function marketCount() view returns (uint256)",
-    params: [],
-  });
+  const { data: marketCount, isLoading: isMarketCountLoading } =
+    useReadContract({
+      contract,
+      method: "function marketCount() view returns (uint256)",
+      params: [],
+    });
 
-  // Fetch market details
+  // Fetch all markets at once
+  const marketQueries = Array.from(
+    { length: marketCount ? Number(marketCount) : 0 },
+    (_, i) => ({
+      contract,
+      method:
+        "function getMarketInfo(uint256 _marketId) view returns (string question, string optionA, string optionB, uint256 endTime, uint8 outcome, uint256 totalOptionAShares, uint256 totalOptionBShares, bool resolved)",
+      params: [BigInt(i)],
+    })
+  );
+
+  // Use useReadContract for each market individually
+  const marketResults = marketQueries.map((query) =>
+    useReadContract({
+      ...query,
+      queryOptions: { enabled: !!marketCount && !isMarketCountLoading },
+    })
+  );
+
+  // Process market data when available
   useEffect(() => {
-    const fetchMarkets = async () => {
-      if (!marketCount) return;
-
+    if (isMarketCountLoading || !marketCount) {
       setIsLoading(true);
-      const marketData: (Market & { id: number })[] = [];
-      for (let i = 0; i < Number(marketCount); i++) {
-        const { data } = await useReadContract({
-          contract,
-          method:
-            "function getMarketInfo(uint256 _marketId) view returns (string question, string optionA, string optionB, uint256 endTime, uint8 outcome, uint256 totalOptionAShares, uint256 totalOptionBShares, bool resolved)",
-          params: [BigInt(i)],
-        });
-        if (data) {
-          marketData.push({
-            id: i,
-            question: data[0],
-            optionA: data[1],
-            optionB: data[2],
-            endTime: data[3],
-            resolved: data[7],
-          });
-        }
-      }
-      setMarkets(marketData);
-      setIsLoading(false);
-    };
+      return;
+    }
 
-    fetchMarkets();
-  }, [marketCount]);
+    const marketData: (Market & { id: number })[] = [];
+    let allLoaded = true;
+
+    marketResults.forEach(({ data }, index) => {
+      if (
+        data &&
+        Array.isArray(data) &&
+        data.length === 8 &&
+        typeof data[0] === "string" &&
+        typeof data[1] === "string" &&
+        typeof data[2] === "string" &&
+        typeof data[3] === "bigint" &&
+        typeof data[7] === "boolean"
+      ) {
+        marketData.push({
+          id: index,
+          question: data[0],
+          optionA: data[1],
+          optionB: data[2],
+          endTime: data[3],
+          resolved: data[7],
+        });
+      } else {
+        allLoaded = false;
+      }
+    });
+
+    if (allLoaded && marketData.length === Number(marketCount)) {
+      setMarkets(marketData.sort((a, b) => a.id - b.id)); // Ensure consistent order
+      setIsLoading(false);
+    }
+  }, [marketResults, marketCount, isMarketCountLoading]);
 
   const handleResolveMarket = async (
     marketId: number,
