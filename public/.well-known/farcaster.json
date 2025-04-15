@@ -1,0 +1,18 @@
+{
+  "accountAssociation": {
+    "header": "eyJmaWQiOjIzOTM5NiwidHlwZSI6ImN1c3RvZHkiLCJrZXkiOiIweDRENEU1MjIzODRkNkYxMDkwYkZENEM0NTI3YTdkNTJERmQyMGJDYTMifQ",
+    "payload": "eyJkb21haW4iOiJidXN0ZXItbWt0LnZlcmNlbC5hcHAifQ",
+    "signature": "MHg4ZmE0MGM1MGRiN2RkNjEyZGIzMzNlNzg1NTA0YjZhNzg4OTJjNTQ4YTA2ODEyNWIzOTI2M2RjMThjMmM4N2Y4MGQ0MWY4NjYyMWE5NjAzNjlmMDU4ZWIzNWRiOTgwYjRlZDY1YjI2YjFlZWE3NTYwNGZlZmQ0NzI1ZGQ3NWUzZDFi"
+  },
+  "frame": {
+    "version": "1",
+    "name": "FORECAST",
+    "iconUrl": "https://buster-mkt.vercel.app/icon1.jpg",
+    "homeUrl": "https://buster-mkt.vercel.app",
+    "imageUrl": "https://buster-mkt.vercel.app/icon.jpg",
+    "buttonTitle": "Forecast",
+    "splashImageUrl": "https://buster-mkt.vercel.app/icon.jpg",
+    "splashBackgroundColor": "#ffffff",
+    "webhookUrl": "https://buster-mkt.vercel.app/api/webhook"
+  }
+}
