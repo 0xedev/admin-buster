@@ -1,8 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useReadContract, useSendAndConfirmTransaction } from "thirdweb/react";
-import { prepareContractCall } from "thirdweb";
+import {
+  useReadContract,
+  useSendAndConfirmTransaction,
+  useContractEvents,
+} from "thirdweb/react";
+import { prepareContractCall, prepareEvent, readContract } from "thirdweb";
 import { contract } from "@/constants/contract";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,21 +14,35 @@ import { useToast } from "@/components/ui/use-toast";
 import { Loader2 } from "lucide-react";
 
 interface Market {
+  id: number;
   question: string;
   optionA: string;
-  optionB: string;
+  optionB: bigint;
   endTime: bigint;
   resolved: boolean;
 }
+
+// Prepare the event signatures we want to listen for
+const marketCreatedEvent = prepareEvent({
+  signature:
+    "event MarketCreated(uint256 indexed marketId, string question, string optionA, string optionB, uint256 endTime)",
+});
+
+const marketResolvedEvent = prepareEvent({
+  signature: "event MarketResolved(uint256 indexed marketId, uint8 outcome)",
+});
 
 export function ResolveMarketList() {
   const { toast } = useToast();
   const { mutateAsync: sendTransaction, isPending } =
     useSendAndConfirmTransaction();
-  const [markets, setMarkets] = useState<(Market & { id: number })[]>([]);
+  const [markets, setMarkets] = useState<Market[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [resolvedMarketIds, setResolvedMarketIds] = useState<Set<number>>(
+    new Set()
+  );
 
-  // Fetch market count
+  // Fetch market count - we'll use this to know how many markets to query
   const { data: marketCount, isLoading: isMarketCountLoading } =
     useReadContract({
       contract,
@@ -32,53 +50,104 @@ export function ResolveMarketList() {
       params: [],
     });
 
-  // Fetch market data
-  useEffect(() => {
-    const fetchMarkets = async () => {
-      if (!marketCount || isMarketCountLoading) {
-        setIsLoading(true);
-        return;
-      }
+  // Listen for MarketCreated events
+  const { data: marketCreatedEvents } = useContractEvents({
+    contract,
+    events: [marketCreatedEvent],
+  });
 
+  // Listen for MarketResolved events
+  const { data: marketResolvedEvents } = useContractEvents({
+    contract,
+    events: [marketResolvedEvent],
+  });
+
+  // Process created markets
+  useEffect(() => {
+    if (!marketCreatedEvents || marketCreatedEvents.length === 0) return;
+
+    const processedMarkets: Market[] = marketCreatedEvents.map((event) => {
+      const { args } = event;
+
+      // Extract the market data from event args
+      return {
+        id: Number(args.marketId),
+        question: args.question,
+        optionA: args.optionA,
+        optionB: BigInt(args.optionB),
+        endTime: args.endTime,
+        resolved: false, // Initially not resolved
+      };
+    });
+
+    setMarkets(processedMarkets);
+    setIsLoading(false);
+  }, [marketCreatedEvents]);
+
+  // Process resolved markets
+  useEffect(() => {
+    if (!marketResolvedEvents || marketResolvedEvents.length === 0) return;
+
+    // Create a set of resolved market IDs
+    const resolved = new Set<number>();
+    marketResolvedEvents.forEach((event) => {
+      resolved.add(Number(event.args.marketId));
+    });
+
+    setResolvedMarketIds(resolved);
+
+    // Update existing markets with resolved status
+    setMarkets((prev) =>
+      prev.map((market) => ({
+        ...market,
+        resolved: resolved.has(market.id),
+      }))
+    );
+  }, [marketResolvedEvents]);
+
+  // Fallback to direct contract calls if events don't provide enough data
+  useEffect(() => {
+    if (
+      markets.length > 0 ||
+      isMarketCountLoading ||
+      marketCount === undefined
+    ) {
+      return;
+    }
+
+    const fetchAllMarketInfo = async () => {
       setIsLoading(true);
       try {
         const count = Number(marketCount);
-        const marketPromises = Array.from({ length: count }, (_, i) =>
-          useReadContract({
-            contract,
-            method:
-              "function getMarketInfo(uint256 _marketId) view returns (string question, string optionA, string optionB, uint256 endTime, uint8 outcome, uint256 totalOptionAShares, uint256 totalOptionBShares, bool resolved)",
-            params: [BigInt(i)],
-          })
-        );
+        const fetchedMarkets: Market[] = [];
 
-        const results = await Promise.all(marketPromises);
-        const marketData: (Market & { id: number })[] = results.map(
-          (data, i) => {
-            if (
-              data &&
-              Array.isArray(data) &&
-              data.length === 8 &&
-              typeof data[0] === "string" &&
-              typeof data[1] === "string" &&
-              typeof data[2] === "string" &&
-              typeof data[3] === "bigint" &&
-              typeof data[7] === "boolean"
-            ) {
-              return {
+        for (let i = 0; i < count; i++) {
+          try {
+            // Use the readContract function directly instead of using hooks
+            // This is the recommended way to read contract data outside of React components
+            const result = await readContract({
+              contract,
+              method:
+                "function getMarketInfo(uint256 _marketId) view returns (string question, string optionA, string optionB, uint256 endTime, uint8 outcome, uint256 totalOptionAShares, uint256 totalOptionBShares, bool resolved)",
+              params: [BigInt(i)],
+            });
+
+            if (result && Array.isArray(result) && result.length === 8) {
+              fetchedMarkets.push({
                 id: i,
-                question: data[0],
-                optionA: data[1],
-                optionB: data[2],
-                endTime: data[3],
-                resolved: data[7],
-              };
+                question: result[0],
+                optionA: result[1],
+                optionB: BigInt(result[2]),
+                endTime: result[3],
+                resolved: result[7],
+              });
             }
-            throw new Error(`Invalid market data for ID ${i}`);
+          } catch (error) {
+            console.error(`Error fetching market ${i}:`, error);
           }
-        );
+        }
 
-        setMarkets(marketData.sort((a, b) => a.id - b.id)); // Ensure consistent order
+        setMarkets(fetchedMarkets);
       } catch (error) {
         console.error("Failed to fetch markets:", error);
         toast({
@@ -91,8 +160,8 @@ export function ResolveMarketList() {
       }
     };
 
-    fetchMarkets();
-  }, [marketCount, isMarketCountLoading, toast]);
+    fetchAllMarketInfo();
+  }, [marketCount, isMarketCountLoading, markets.length, toast]);
 
   const handleResolveMarket = async (
     marketId: number,
@@ -110,9 +179,12 @@ export function ResolveMarketList() {
         title: "Success",
         description: `Market ${marketId} resolved as ${outcome}.`,
       });
+
+      // Update local state
       setMarkets((prev) =>
         prev.map((m) => (m.id === marketId ? { ...m, resolved: true } : m))
       );
+      setResolvedMarketIds((prev) => new Set(prev).add(marketId));
     } catch (error) {
       console.error("Resolve market error:", error);
       toast({
@@ -131,12 +203,17 @@ export function ResolveMarketList() {
     );
   }
 
+  // Deduplicate markets by id before rendering
+  const uniqueMarkets = Array.from(
+    new Map(markets.map((m) => [m.id, m])).values()
+  );
+
   return (
     <div className="space-y-4">
-      {markets.length === 0 ? (
+      {uniqueMarkets.length === 0 ? (
         <p>No markets available.</p>
       ) : (
-        markets.map((market) => (
+        uniqueMarkets.map((market) => (
           <Card key={market.id}>
             <CardHeader>
               <CardTitle>{market.question}</CardTitle>

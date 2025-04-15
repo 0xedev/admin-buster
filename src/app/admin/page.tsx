@@ -42,7 +42,7 @@ export default function AdminPage() {
     method:
       "function hasRole(bytes32 role, address account) view returns (bool)",
     params: [
-      "0x4f3d93ab9e5b9f246762d74ad245e3ba427d8b95b06e5c3966f91e6c216afeda",
+      "0xef485be696bbc0c91ad541bbd553ffb5bd0e18dac30ba76e992dda23cb807a8a",
       account?.address || "0x0",
     ],
   });
@@ -53,7 +53,7 @@ export default function AdminPage() {
     method:
       "function hasRole(bytes32 role, address account) view returns (bool)",
     params: [
-      "0x3c6e7b6e5c0e8e8e3d6e0b90d8b0d4f9b0e1d3d7f9d1d5d7f8d0d3d7f9d1d5d7",
+      "0xdcee1d35c83a32b436264a5c9afd68685c124f3f9097e87804c55410e67fc59a",
       account?.address || "0x0",
     ],
   });
