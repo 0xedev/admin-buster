@@ -40,6 +40,7 @@ export function ResolveMarketList() {
     useSendAndConfirmTransaction();
   const [markets, setMarkets] = useState<Market[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  //eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [resolvedMarketIds, setResolvedMarketIds] = useState<Set<number>>(
     new Set()
   );
