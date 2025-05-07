@@ -11,7 +11,7 @@ import { contract } from "@/constants/contract";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
-import { Loader2 } from "lucide-react";
+import { Loader2, ChevronLeft, ChevronRight } from "lucide-react";
 
 interface Market {
   id: number;
@@ -21,6 +21,8 @@ interface Market {
   endTime: bigint;
   resolved: boolean;
 }
+
+const MARKETS_PER_PAGE = 5;
 
 // Prepare the event signatures we want to listen for
 const marketCreatedEvent = prepareEvent({
@@ -41,6 +43,8 @@ export function ResolveMarketList() {
   const [resolvedMarketIds, setResolvedMarketIds] = useState<Set<number>>(
     new Set()
   );
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
 
   // Fetch market count
   const { data: marketCount, isLoading: isMarketCountLoading } =
@@ -66,23 +70,26 @@ export function ResolveMarketList() {
   useEffect(() => {
     if (!marketCreatedEvents || marketCreatedEvents.length === 0) return;
 
-    const processedMarkets: Market[] = marketCreatedEvents.map((event) => {
-      const { args } = event;
-      return {
-        id: Number(args.marketId),
-        question: args.question,
-        optionA: args.optionA,
-        optionB: args.optionB,
-        endTime: args.endTime,
-        resolved: false,
-      };
-    });
+    const processedMarkets: Market[] = marketCreatedEvents
+      .map((event) => {
+        const { args } = event;
+        return {
+          id: Number(args.marketId),
+          question: args.question,
+          optionA: args.optionA,
+          optionB: args.optionB,
+          endTime: args.endTime,
+          resolved: false,
+        };
+      })
+      .sort((a, b) => b.id - a.id); // Sort by id descending (latest first)
 
     const uniqueMarkets = Array.from(
       new Map(processedMarkets.map((market) => [market.id, market])).values()
     );
 
     setMarkets(uniqueMarkets);
+    setTotalPages(Math.ceil(uniqueMarkets.length / MARKETS_PER_PAGE));
     setIsLoading(false);
   }, [marketCreatedEvents]);
 
@@ -97,11 +104,14 @@ export function ResolveMarketList() {
 
     setResolvedMarketIds(resolved);
     setMarkets((prev) =>
-      prev.map((market) => ({
-        ...market,
-        resolved: resolved.has(market.id),
-      }))
+      prev
+        .map((market) => ({
+          ...market,
+          resolved: resolved.has(market.id),
+        }))
+        .sort((a, b) => b.id - a.id) // Re-sort after updating resolved status
     );
+    setTotalPages(Math.ceil(markets.length / MARKETS_PER_PAGE));
   }, [marketResolvedEvents]);
 
   // Fetch market info using getMarketInfoBatch
@@ -126,16 +136,19 @@ export function ResolveMarketList() {
           params: [marketIds],
         });
 
-        const fetchedMarkets: Market[] = marketIds.map((id, i) => ({
-          id: Number(id),
-          question: result[0][i],
-          optionA: result[1][i],
-          optionB: result[2][i],
-          endTime: result[3][i],
-          resolved: result[7][i],
-        }));
+        const fetchedMarkets: Market[] = marketIds
+          .map((id, i) => ({
+            id: Number(id),
+            question: result[0][i],
+            optionA: result[1][i],
+            optionB: result[2][i],
+            endTime: result[3][i],
+            resolved: result[7][i],
+          }))
+          .sort((a, b) => b.id - a.id); // Sort by id descending
 
         setMarkets(fetchedMarkets);
+        setTotalPages(Math.ceil(fetchedMarkets.length / MARKETS_PER_PAGE));
       } catch (error) {
         console.error("Failed to fetch markets:", error);
         toast({
@@ -169,7 +182,9 @@ export function ResolveMarketList() {
       });
 
       setMarkets((prev) =>
-        prev.map((m) => (m.id === marketId ? { ...m, resolved: true } : m))
+        prev
+          .map((m) => (m.id === marketId ? { ...m, resolved: true } : m))
+          .sort((a, b) => b.id - a.id)
       );
       setResolvedMarketIds((prev) => new Set(prev).add(marketId));
     } catch (error) {
@@ -188,7 +203,7 @@ export function ResolveMarketList() {
         contract,
         method:
           "function distributeWinningsBatch(uint256 _marketId, uint256 batchSize)",
-        params: [BigInt(marketId), BigInt(10)], // Adjust batchSize as needed
+        params: [BigInt(marketId), BigInt(10)],
       });
 
       await sendTransaction(transaction);
@@ -206,6 +221,25 @@ export function ResolveMarketList() {
     }
   };
 
+  // Pagination logic
+  const startIndex = (currentPage - 1) * MARKETS_PER_PAGE;
+  const paginatedMarkets = markets.slice(
+    startIndex,
+    startIndex + MARKETS_PER_PAGE
+  );
+
+  const handlePreviousPage = () => {
+    if (currentPage > 1) {
+      setCurrentPage(currentPage - 1);
+    }
+  };
+
+  const handleNextPage = () => {
+    if (currentPage < totalPages) {
+      setCurrentPage(currentPage + 1);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="text-center">
@@ -219,66 +253,91 @@ export function ResolveMarketList() {
       {markets.length === 0 ? (
         <p>No markets available.</p>
       ) : (
-        markets.map((market) => (
-          <Card key={market.id}>
-            <CardHeader>
-              <CardTitle>{market.question}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p>Option A: {market.optionA}</p>
-              <p>Option B: {market.optionB}</p>
+        <>
+          {paginatedMarkets.map((market) => (
+            <Card key={market.id}>
+              <CardHeader>
+                <CardTitle>{market.question}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p>Option A: {market.optionA}</p>
+                <p>Option B: {market.optionB}</p>
+                <p>
+                  End Time:{" "}
+                  {new Date(Number(market.endTime) * 1000).toLocaleDateString()}
+                </p>
+                {market.resolved ? (
+                  <>
+                    <p className="text-green-600">Resolved</p>
+                    <Button
+                      onClick={() => handleDistributeWinnings(market.id)}
+                      disabled={isPending}
+                      className="mt-2"
+                    >
+                      {isPending ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        "Distribute Winnings"
+                      )}
+                    </Button>
+                  </>
+                ) : (
+                  <div className="flex gap-2 mt-2">
+                    <Button
+                      onClick={() => handleResolveMarket(market.id, "OPTION_A")}
+                      disabled={
+                        isPending ||
+                        new Date(Number(market.endTime) * 1000) > new Date()
+                      }
+                    >
+                      {isPending ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        `Resolve as ${market.optionA}`
+                      )}
+                    </Button>
+                    <Button
+                      onClick={() => handleResolveMarket(market.id, "OPTION_B")}
+                      disabled={
+                        isPending ||
+                        new Date(Number(market.endTime) * 1000) > new Date()
+                      }
+                    >
+                      {isPending ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        `Resolve as ${market.optionB}`
+                      )}
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          ))}
+          {totalPages > 1 && (
+            <div className="flex justify-between items-center mt-4">
+              <Button
+                onClick={handlePreviousPage}
+                disabled={currentPage === 1}
+                variant="outline"
+              >
+                <ChevronLeft className="h-4 w-4 mr-2" />
+                Previous
+              </Button>
               <p>
-                End Time:{" "}
-                {new Date(Number(market.endTime) * 1000).toLocaleDateString()}
+                Page {currentPage} of {totalPages}
               </p>
-              {market.resolved ? (
-                <>
-                  <p className="text-green-600">Resolved</p>
-                  <Button
-                    onClick={() => handleDistributeWinnings(market.id)}
-                    disabled={isPending}
-                    className="mt-2"
-                  >
-                    {isPending ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                      "Distribute Winnings"
-                    )}
-                  </Button>
-                </>
-              ) : (
-                <div className="flex gap-2 mt-2">
-                  <Button
-                    onClick={() => handleResolveMarket(market.id, "OPTION_A")}
-                    disabled={
-                      isPending ||
-                      new Date(Number(market.endTime) * 1000) > new Date()
-                    }
-                  >
-                    {isPending ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                      `Resolve as ${market.optionA}`
-                    )}
-                  </Button>
-                  <Button
-                    onClick={() => handleResolveMarket(market.id, "OPTION_B")}
-                    disabled={
-                      isPending ||
-                      new Date(Number(market.endTime) * 1000) > new Date()
-                    }
-                  >
-                    {isPending ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                      `Resolve as ${market.optionB}`
-                    )}
-                  </Button>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        ))
+              <Button
+                onClick={handleNextPage}
+                disabled={currentPage === totalPages}
+                variant="outline"
+              >
+                Next
+                <ChevronRight className="h-4 w-4 ml-2" />
+              </Button>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
