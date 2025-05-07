@@ -38,12 +38,11 @@ export function ResolveMarketList() {
     useSendAndConfirmTransaction();
   const [markets, setMarkets] = useState<Market[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [resolvedMarketIds, setResolvedMarketIds] = useState<Set<number>>(
     new Set()
   );
 
-  // Fetch market count - we'll use this to know how many markets to query
+  // Fetch market count
   const { data: marketCount, isLoading: isMarketCountLoading } =
     useReadContract({
       contract,
@@ -69,19 +68,16 @@ export function ResolveMarketList() {
 
     const processedMarkets: Market[] = marketCreatedEvents.map((event) => {
       const { args } = event;
-
-      // Extract the market data from event args
       return {
         id: Number(args.marketId),
         question: args.question,
         optionA: args.optionA,
         optionB: args.optionB,
         endTime: args.endTime,
-        resolved: false, // Initially not resolved
+        resolved: false,
       };
     });
 
-    // Ensure we don't have duplicate IDs in our markets array
     const uniqueMarkets = Array.from(
       new Map(processedMarkets.map((market) => [market.id, market])).values()
     );
@@ -94,15 +90,12 @@ export function ResolveMarketList() {
   useEffect(() => {
     if (!marketResolvedEvents || marketResolvedEvents.length === 0) return;
 
-    // Create a set of resolved market IDs
     const resolved = new Set<number>();
     marketResolvedEvents.forEach((event) => {
       resolved.add(Number(event.args.marketId));
     });
 
     setResolvedMarketIds(resolved);
-
-    // Update existing markets with resolved status
     setMarkets((prev) =>
       prev.map((market) => ({
         ...market,
@@ -111,7 +104,7 @@ export function ResolveMarketList() {
     );
   }, [marketResolvedEvents]);
 
-  // Fallback to direct contract calls if events don't provide enough data
+  // Fetch market info using getMarketInfoBatch
   useEffect(() => {
     if (
       markets.length > 0 ||
@@ -125,45 +118,29 @@ export function ResolveMarketList() {
       setIsLoading(true);
       try {
         const count = Number(marketCount);
-        const fetchedMarkets: Market[] = [];
+        const marketIds = Array.from({ length: count }, (_, i) => BigInt(i));
+        const result = await readContract({
+          contract,
+          method:
+            "function getMarketInfoBatch(uint256[] _marketIds) view returns (string[] questions, string[] optionAs, string[] optionBs, uint256[] endTimes, uint8[] outcomes, uint256[] totalOptionASharesArray, uint256[] totalOptionBSharesArray, bool[] resolvedArray)",
+          params: [marketIds],
+        });
 
-        for (let i = 0; i < count; i++) {
-          try {
-            // Use the readContract function directly instead of using hooks
-            // This is the recommended way to read contract data outside of React components
-            const result = await readContract({
-              contract,
-              method:
-                "function getMarketInfo(uint256 _marketId) view returns (string question, string optionA, string optionB, uint256 endTime, uint8 outcome, uint256 totalOptionAShares, uint256 totalOptionBShares, bool resolved)",
-              params: [BigInt(i)],
-            });
+        const fetchedMarkets: Market[] = marketIds.map((id, i) => ({
+          id: Number(id),
+          question: result[0][i],
+          optionA: result[1][i],
+          optionB: result[2][i],
+          endTime: result[3][i],
+          resolved: result[7][i],
+        }));
 
-            if (result && Array.isArray(result) && result.length === 8) {
-              fetchedMarkets.push({
-                id: i,
-                question: result[0],
-                optionA: result[1],
-                optionB: result[2],
-                endTime: result[3],
-                resolved: result[7],
-              });
-            }
-          } catch (error) {
-            console.error(`Error fetching market ${i}:`, error);
-          }
-        }
-
-        // Ensure we don't have duplicate IDs in our markets array
-        const uniqueMarkets = Array.from(
-          new Map(fetchedMarkets.map((market) => [market.id, market])).values()
-        );
-
-        setMarkets(uniqueMarkets);
+        setMarkets(fetchedMarkets);
       } catch (error) {
         console.error("Failed to fetch markets:", error);
         toast({
           title: "Error",
-          description: "Failed to load markets. Check console for details.",
+          description: "Failed to load markets.",
           variant: "destructive",
         });
       } finally {
@@ -182,7 +159,7 @@ export function ResolveMarketList() {
       const transaction = await prepareContractCall({
         contract,
         method: "function resolveMarket(uint256 _marketId, uint8 _outcome)",
-        params: [BigInt(marketId), outcome === "OPTION_A" ? 1 : 2], // 1 for OPTION_A, 2 for OPTION_B
+        params: [BigInt(marketId), outcome === "OPTION_A" ? 1 : 2],
       });
 
       await sendTransaction(transaction);
@@ -191,7 +168,6 @@ export function ResolveMarketList() {
         description: `Market ${marketId} resolved as ${outcome}.`,
       });
 
-      // Update local state
       setMarkets((prev) =>
         prev.map((m) => (m.id === marketId ? { ...m, resolved: true } : m))
       );
@@ -200,7 +176,31 @@ export function ResolveMarketList() {
       console.error("Resolve market error:", error);
       toast({
         title: "Error",
-        description: "Failed to resolve market. Check console for details.",
+        description: "Failed to resolve market.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDistributeWinnings = async (marketId: number) => {
+    try {
+      const transaction = await prepareContractCall({
+        contract,
+        method:
+          "function distributeWinningsBatch(uint256 _marketId, uint256 batchSize)",
+        params: [BigInt(marketId), BigInt(10)], // Adjust batchSize as needed
+      });
+
+      await sendTransaction(transaction);
+      toast({
+        title: "Success",
+        description: `Winnings distributed for market ${marketId}.`,
+      });
+    } catch (error) {
+      console.error("Distribute winnings error:", error);
+      toast({
+        title: "Error",
+        description: "Failed to distribute winnings.",
         variant: "destructive",
       });
     }
@@ -232,7 +232,20 @@ export function ResolveMarketList() {
                 {new Date(Number(market.endTime) * 1000).toLocaleDateString()}
               </p>
               {market.resolved ? (
-                <p className="text-green-600">Resolved</p>
+                <>
+                  <p className="text-green-600">Resolved</p>
+                  <Button
+                    onClick={() => handleDistributeWinnings(market.id)}
+                    disabled={isPending}
+                    className="mt-2"
+                  >
+                    {isPending ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      "Distribute Winnings"
+                    )}
+                  </Button>
+                </>
               ) : (
                 <div className="flex gap-2 mt-2">
                   <Button
