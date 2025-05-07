@@ -2,7 +2,7 @@ import { client } from "@/app/client";
 import { getContract } from "thirdweb";
 import { base } from "thirdweb/chains";
 
-export const contractAddress = "0xD3fa48B3bb4f89bF3B75F5763475B774076215D1";
+export const contractAddress = "0xD3fa48B3bb4f89bF3B75F5763475B774076215D1"; // Verify if this needs updating
 
 export const contract = getContract({
   client: client,
@@ -193,21 +193,18 @@ export const contractABI = [
         name: "_marketId",
         type: "uint256",
       },
-    ],
-    name: "buyShares",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
-    inputs: [
+      {
+        internalType: "bool",
+        name: "_isOptionA",
+        type: "bool",
+      },
       {
         internalType: "uint256",
-        name: "_marketId",
+        name: "_amount",
         type: "uint256",
       },
     ],
-    name: "claimWinnings",
+    name: "buyShares",
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",
@@ -243,6 +240,24 @@ export const contractABI = [
         type: "uint256",
       },
     ],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "_marketId",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "batchSize",
+        type: "uint256",
+      },
+    ],
+    name: "distributeWinningsBatch",
+    outputs: [],
     stateMutability: "nonpayable",
     type: "function",
   },
@@ -308,6 +323,60 @@ export const contractABI = [
         internalType: "bool",
         name: "resolved",
         type: "bool",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256[]",
+        name: "marketIds",
+        type: "uint256[]",
+      },
+    ],
+    name: "getMarketInfoBatch",
+    outputs: [
+      {
+        internalType: "string[]",
+        name: "questions",
+        type: "string[]",
+      },
+      {
+        internalType: "string[]",
+        name: "optionAs",
+        type: "string[]",
+      },
+      {
+        internalType: "string[]",
+        name: "optionBs",
+        type: "string[]",
+      },
+      {
+        internalType: "uint256[]",
+        name: "endTimes",
+        type: "uint256[]",
+      },
+      {
+        internalType: "enum SimplePredictionMarket.MarketOutcome[]",
+        name: "outcomes",
+        type: "uint8[]",
+      },
+      {
+        internalType: "uint256[]",
+        name: "totalOptionASharesArray",
+        type: "uint256[]",
+      },
+      {
+        internalType: "uint256[]",
+        name: "totalOptionBSharesArray",
+        type: "uint256[]",
+      },
+      {
+        internalType: "bool[]",
+        name: "resolvedArray",
+        type: "bool[]",
       },
     ],
     stateMutability: "view",
