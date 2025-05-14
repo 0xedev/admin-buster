@@ -104,13 +104,14 @@ export function ResolveMarketList() {
     });
 
     setResolvedMarketIds(resolved);
-    setMarkets((prev) =>
-      prev
-        .map((market) => ({
-          ...market,
-          resolved: resolved.has(market.id),
-        }))
-        .sort((a, b) => b.id - a.id) // Re-sort after updating resolved status
+    setMarkets(
+      (prev) =>
+        prev
+          .map((market) => ({
+            ...market,
+            resolved: resolved.has(market.id),
+          }))
+          .sort((a, b) => b.id - a.id) // Re-sort after updating resolved status
     );
     setTotalPages(Math.ceil(markets.length / MARKETS_PER_PAGE));
   }, [marketResolvedEvents]);
@@ -204,7 +205,7 @@ export function ResolveMarketList() {
         contract,
         method:
           "function distributeWinningsBatch(uint256 _marketId, uint256 batchSize)",
-        params: [BigInt(marketId), BigInt(10)],
+        params: [BigInt(marketId), BigInt(20)],
       });
 
       await sendTransaction(transaction);

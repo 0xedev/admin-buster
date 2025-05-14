@@ -2,7 +2,7 @@ import { client } from "@/app/client";
 import { getContract } from "thirdweb";
 import { base } from "thirdweb/chains";
 
-export const contractAddress = "0xc703856dc56576800F9bc7DfD6ac15e92Ac2d7D6"; // Verify if this needs updating 
+export const contractAddress = "0xE82b18aE4003769C0353700751C95Df536c044e0";
 
 export const contract = getContract({
   client: client,
