@@ -3,10 +3,10 @@
 import { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Forecast - Prediction Market",
-  description: "Forecast outcomes!",
+  title: "Policast - Prediction Market",
+  description: "Policast outcomes!",
   openGraph: {
-    title: "Forecast",
+    title: "Policast",
     images: ["/icon.jpg"],
   },
   other: {
@@ -14,10 +14,10 @@ export const metadata: Metadata = {
       version: "next",
       imageUrl: "https://admin-buster.vercel.app/icon.jpg",
       button: {
-        title: "Forecast",
+        title: "Policast",
         action: {
           type: "launch_frame",
-          name: "Forecast",
+          name: "Policast",
           iconUrl: "https://admin-buster.vercel.app/icon1.jpg",
           url: "https://buster-mkt.vercel.app",
           splashImageUrl: "https://admin-buster.vercel.app/icon.jpg",

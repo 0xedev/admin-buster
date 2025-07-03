@@ -20,11 +20,12 @@ interface Market {
   optionB: string;
   endTime: bigint;
   resolved: boolean;
+  payoutIndex: bigint;
+  totalParticipants: bigint;
 }
 
 const MARKETS_PER_PAGE = 5;
 
-// Prepare the event signatures we want to listen for
 const marketCreatedEvent = prepareEvent({
   signature:
     "event MarketCreated(uint256 indexed marketId, string question, string optionA, string optionB, uint256 endTime)",
@@ -40,14 +41,12 @@ export function ResolveMarketList() {
     useSendAndConfirmTransaction();
   const [markets, setMarkets] = useState<Market[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  //eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [resolvedMarketIds, setResolvedMarketIds] = useState<Set<number>>(
     new Set()
   );
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
 
-  // Fetch market count
   const { data: marketCount, isLoading: isMarketCountLoading } =
     useReadContract({
       contract,
@@ -55,19 +54,16 @@ export function ResolveMarketList() {
       params: [],
     });
 
-  // Listen for MarketCreated events
   const { data: marketCreatedEvents } = useContractEvents({
     contract,
     events: [marketCreatedEvent],
   });
 
-  // Listen for MarketResolved events
   const { data: marketResolvedEvents } = useContractEvents({
     contract,
     events: [marketResolvedEvent],
   });
 
-  // Process created markets
   useEffect(() => {
     if (!marketCreatedEvents || marketCreatedEvents.length === 0) return;
 
@@ -81,9 +77,11 @@ export function ResolveMarketList() {
           optionB: args.optionB,
           endTime: args.endTime,
           resolved: false,
+          payoutIndex: BigInt(0),
+          totalParticipants: BigInt(0),
         };
       })
-      .sort((a, b) => b.id - a.id); // Sort by id descending (latest first)
+      .sort((a, b) => b.id - a.id);
 
     const uniqueMarkets = Array.from(
       new Map(processedMarkets.map((market) => [market.id, market])).values()
@@ -94,7 +92,6 @@ export function ResolveMarketList() {
     setIsLoading(false);
   }, [marketCreatedEvents]);
 
-  // Process resolved markets
   useEffect(() => {
     if (!marketResolvedEvents || marketResolvedEvents.length === 0) return;
 
@@ -104,19 +101,17 @@ export function ResolveMarketList() {
     });
 
     setResolvedMarketIds(resolved);
-    setMarkets(
-      (prev) =>
-        prev
-          .map((market) => ({
-            ...market,
-            resolved: resolved.has(market.id),
-          }))
-          .sort((a, b) => b.id - a.id) // Re-sort after updating resolved status
+    setMarkets((prev) =>
+      prev
+        .map((market) => ({
+          ...market,
+          resolved: resolved.has(market.id),
+        }))
+        .sort((a, b) => b.id - a.id)
     );
     setTotalPages(Math.ceil(markets.length / MARKETS_PER_PAGE));
   }, [marketResolvedEvents]);
 
-  // Fetch market info using getMarketInfoBatch
   useEffect(() => {
     if (
       markets.length > 0 ||
@@ -138,6 +133,21 @@ export function ResolveMarketList() {
           params: [marketIds],
         });
 
+        const marketDetails = await Promise.all(
+          marketIds.map(async (id) => {
+            const marketData = await readContract({
+              contract,
+              method:
+                "function markets(uint256) view returns (string question, string optionA, string optionB, uint256 endTime, uint8 outcome, uint256 totalOptionAShares, uint256 totalOptionBShares, bool resolved, uint256 payoutIndex, address[] participants)",
+              params: [id],
+            });
+            return {
+              payoutIndex: marketData[8],
+              totalParticipants: BigInt(marketData[9].length),
+            };
+          })
+        );
+
         const fetchedMarkets: Market[] = marketIds
           .map((id, i) => ({
             id: Number(id),
@@ -146,8 +156,10 @@ export function ResolveMarketList() {
             optionB: result[2][i],
             endTime: result[3][i],
             resolved: result[7][i],
+            payoutIndex: marketDetails[i].payoutIndex,
+            totalParticipants: marketDetails[i].totalParticipants,
           }))
-          .sort((a, b) => b.id - a.id); // Sort by id descending
+          .sort((a, b) => b.id - a.id);
 
         setMarkets(fetchedMarkets);
         setTotalPages(Math.ceil(fetchedMarkets.length / MARKETS_PER_PAGE));
@@ -213,6 +225,25 @@ export function ResolveMarketList() {
         title: "Success",
         description: `Winnings distributed for market ${marketId}.`,
       });
+
+      const marketData = await readContract({
+        contract,
+        method:
+          "function markets(uint256) view returns (string question, string optionA, string optionB, uint256 endTime, uint8 outcome, uint256 totalOptionAShares, uint256 totalOptionBShares, bool resolved, uint256 payoutIndex, address[] participants)",
+        params: [BigInt(marketId)],
+      });
+
+      setMarkets((prev) =>
+        prev.map((m) =>
+          m.id === marketId
+            ? {
+                ...m,
+                payoutIndex: marketData[8],
+                totalParticipants: BigInt(marketData[9].length),
+              }
+            : m
+        )
+      );
     } catch (error) {
       console.error("Distribute winnings error:", error);
       toast({
@@ -223,7 +254,6 @@ export function ResolveMarketList() {
     }
   };
 
-  // Pagination logic
   const startIndex = (currentPage - 1) * MARKETS_PER_PAGE;
   const paginatedMarkets = markets.slice(
     startIndex,
@@ -270,14 +300,24 @@ export function ResolveMarketList() {
                 </p>
                 {market.resolved ? (
                   <>
-                    <p className="text-green-600">Resolved</p>
+                    <p className="text-green-600">
+                      Resolved{" "}
+                      {market.payoutIndex >= market.totalParticipants
+                        ? "(All Winnings Distributed)"
+                        : ""}
+                    </p>
                     <Button
                       onClick={() => handleDistributeWinnings(market.id)}
-                      disabled={isPending}
+                      disabled={
+                        isPending ||
+                        market.payoutIndex >= market.totalParticipants
+                      }
                       className="mt-2"
                     >
                       {isPending ? (
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : market.payoutIndex >= market.totalParticipants ? (
+                        "All Winnings Distributed"
                       ) : (
                         "Distribute Winnings"
                       )}

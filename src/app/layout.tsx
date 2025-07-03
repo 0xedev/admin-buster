@@ -16,8 +16,8 @@ const geistMono = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "Forecast Admin",
-  description: "Admin panel for Forecast prediction market",
+  title: "Policast Admin",
+  description: "Admin panel for Policast prediction market",
 };
 
 export default function RootLayout({
