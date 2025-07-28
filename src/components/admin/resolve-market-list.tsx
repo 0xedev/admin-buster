@@ -41,9 +41,7 @@ export function ResolveMarketList() {
     useSendAndConfirmTransaction();
   const [markets, setMarkets] = useState<Market[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [resolvedMarketIds, setResolvedMarketIds] = useState<Set<number>>(
-    new Set()
-  );
+  const [, setResolvedMarketIds] = useState<Set<number>>(new Set());
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
 
