@@ -1,36 +1,51 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Policast Prediction Market Admin
 
-## Getting Started
+Admin dashboard for managing the Policast prediction market smart contract on Base mainnet.
 
-First, run the development server:
+## Features
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+- Create new prediction markets
+- Resolve markets and set outcomes
+- Distribute winnings to participants
+- Grant admin roles (creator, resolver, owner)
+- Connect wallet (MetaMask, Coinbase, etc.)
+- View market details, shares, and participant stats
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Tech Stack
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- Next.js 15 (App Router)
+- TypeScript
+- wagmi & viem (Web3 contract interaction)
+- @tanstack/react-query (data fetching)
+- Tailwind CSS (UI)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Setup
 
-## Learn More
+1. Install dependencies:
+   ```bash
+   npm install
+   ```
+2. Set your Alchemy RPC URL in `.env.local`:
+   ```env
+   NEXT_PUBLIC_ALCHEMY_RPC_URL=YOUR_ALCHEMY_BASE_MAINNET_URL
+   ```
+3. Run the development server:
+   ```bash
+   npm run dev
+   ```
+4. Open [http://localhost:3000/admin](http://localhost:3000/admin) to access the admin dashboard.
 
-To learn more about Next.js, take a look at the following resources:
+## Usage
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- Connect your wallet to access admin features.
+- Only addresses with the correct roles (owner, creator, resolver) can perform admin actions.
+- Use the dashboard to create, resolve, and distribute winnings for prediction markets.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Smart Contract
 
-## Deploy on Vercel
+- Contract address: `0xd24261cD87Ac11A8961a2d5df7036ad87ca7F02A` (Base mainnet)
+- See `src/constants/contract.ts` for ABI and contract config.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## License
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+MIT
