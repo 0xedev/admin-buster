@@ -1,25 +1,30 @@
 "use client";
 
 import { useState } from "react";
-import { useActiveAccount, useSendAndConfirmTransaction } from "thirdweb/react";
-import { prepareContractCall } from "thirdweb";
-import { contract } from "@/constants/contract";
+import {
+  useAccount,
+  useWriteContract,
+  useWaitForTransactionReceipt,
+} from "wagmi";
+import { contractAddress, contractAbi } from "@/constants/contract";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/use-toast";
 import { Loader2 } from "lucide-react";
 
 export function GrantRoleForm() {
-  const account = useActiveAccount();
-  const { mutateAsync: sendTransaction, isPending } =
-    useSendAndConfirmTransaction();
+  const { address: userAddress } = useAccount();
+  const { writeContract, data: hash, isPending } = useWriteContract();
+  const { isLoading: isConfirming } = useWaitForTransactionReceipt({
+    hash,
+  });
   const { toast } = useToast();
 
   const [address, setAddress] = useState("");
   const [role, setRole] = useState<"creator" | "resolver" | "">("");
 
   const handleGrantRole = async () => {
-    if (!account) {
+    if (!userAddress) {
       toast({
         title: "Error",
         description: "Please connect your wallet.",
@@ -47,18 +52,18 @@ export function GrantRoleForm() {
     }
 
     try {
-      const method =
+      const functionName =
         role === "creator"
-          ? "function grantQuestionCreatorRole(address _account)"
-          : "function grantQuestionResolveRole(address _account)";
+          ? "grantQuestionCreatorRole"
+          : "grantQuestionResolveRole";
 
-      const transaction = await prepareContractCall({
-        contract,
-        method,
-        params: [address],
+      writeContract({
+        address: contractAddress,
+        abi: contractAbi,
+        functionName,
+        args: [address as `0x${string}`],
       });
 
-      await sendTransaction(transaction);
       toast({
         title: "Success",
         description: `Granted ${role} role to ${address}.`,
@@ -105,8 +110,11 @@ export function GrantRoleForm() {
           <option value="resolver">Question Resolver</option>
         </select>
       </div>
-      <Button onClick={handleGrantRole} disabled={isPending || !account}>
-        {isPending ? (
+      <Button
+        onClick={handleGrantRole}
+        disabled={isPending || isConfirming || !userAddress}
+      >
+        {isPending || isConfirming ? (
           <>
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
             Granting...

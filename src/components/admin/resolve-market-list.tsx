@@ -24,7 +24,7 @@ interface Market {
   totalParticipants: bigint;
 }
 
-const MARKETS_PER_PAGE = 5;
+const MARKETS_PER_PAGE = 10;
 
 export function ResolveMarketList() {
   const { toast } = useToast();

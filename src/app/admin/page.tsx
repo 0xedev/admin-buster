@@ -7,6 +7,7 @@ import { CreateMarketForm } from "@/components/admin/create-market-form";
 import { ResolveMarketList } from "@/components/admin/resolve-market-list";
 import { GrantRoleForm } from "@/components/admin/grant-role-form";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ConnectButton } from "@/components/ui/connect-button";
 import { useToast } from "@/components/ui/use-toast";
 import { Loader2 } from "lucide-react";
 
@@ -85,16 +86,17 @@ export default function AdminPage() {
   if (!isAuthorized) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <Card>
+        <Card className="w-full max-w-md">
           <CardHeader>
             <CardTitle>Unauthorized</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
             <p>You do not have permission to access this page.</p>
-            <div className="mt-4">
-              <p className="text-sm text-gray-500">
-                Please connect your wallet with the appropriate permissions.
-              </p>
+            <p className="text-sm text-gray-500">
+              Please connect your wallet with the appropriate permissions.
+            </p>
+            <div className="flex justify-center">
+              <ConnectButton />
             </div>
           </CardContent>
         </Card>
@@ -106,11 +108,7 @@ export default function AdminPage() {
     <div className="min-h-screen container mx-auto p-4">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold">Policast Admin</h1>
-        <div className="text-sm">
-          {address
-            ? `Connected: ${address.slice(0, 6)}...${address.slice(-4)}`
-            : "Not connected"}
-        </div>
+        <ConnectButton />
       </div>
       {canCreate && (
         <Card className="mb-6">

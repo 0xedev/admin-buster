@@ -1,18 +1,23 @@
 "use client";
 
 import { useState } from "react";
-import { useActiveAccount, useSendAndConfirmTransaction } from "thirdweb/react";
-import { prepareContractCall } from "thirdweb";
-import { contract } from "@/constants/contract";
+import {
+  useAccount,
+  useWriteContract,
+  useWaitForTransactionReceipt,
+} from "wagmi";
+import { contractAddress, contractAbi } from "@/constants/contract";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/use-toast";
 import { Loader2 } from "lucide-react";
 
 export function CreateMarketForm() {
-  const account = useActiveAccount();
-  const { mutateAsync: sendTransaction, isPending } =
-    useSendAndConfirmTransaction();
+  const { address } = useAccount();
+  const { writeContract, data: hash, isPending } = useWriteContract();
+  const { isLoading: isConfirming } = useWaitForTransactionReceipt({
+    hash,
+  });
   const { toast } = useToast();
 
   const [question, setQuestion] = useState("");
@@ -21,7 +26,7 @@ export function CreateMarketForm() {
   const [duration, setDuration] = useState("");
 
   const handleCreateMarket = async () => {
-    if (!account) {
+    if (!address) {
       toast({
         title: "Error",
         description: "Please connect your wallet.",
@@ -50,14 +55,13 @@ export function CreateMarketForm() {
     }
 
     try {
-      const transaction = await prepareContractCall({
-        contract,
-        method:
-          "function createMarket(string _question, string _optionA, string _optionB, uint256 _duration) returns (uint256)",
-        params: [question, optionA, optionB, BigInt(durationSeconds)],
+      writeContract({
+        address: contractAddress,
+        abi: contractAbi,
+        functionName: "createMarket",
+        args: [question, optionA, optionB, BigInt(durationSeconds)],
       });
 
-      await sendTransaction(transaction);
       toast({
         title: "Success",
         description: "Market created successfully!",
@@ -123,8 +127,11 @@ export function CreateMarketForm() {
           placeholder="Enter duration in days"
         />
       </div>
-      <Button onClick={handleCreateMarket} disabled={isPending || !account}>
-        {isPending ? (
+      <Button
+        onClick={handleCreateMarket}
+        disabled={isPending || isConfirming || !address}
+      >
+        {isPending || isConfirming ? (
           <>
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
             Creating...
