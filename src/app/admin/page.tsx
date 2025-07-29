@@ -1,27 +1,17 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useActiveAccount, useReadContract } from "thirdweb/react";
-import { ConnectButton } from "thirdweb/react";
-import { contract } from "@/constants/contract";
-import { base } from "thirdweb/chains";
-import { createWallet } from "thirdweb/wallets";
+import { useAccount, useReadContract } from "wagmi";
+import { contractAddress, contractAbi } from "@/constants/contract";
 import { CreateMarketForm } from "@/components/admin/create-market-form";
 import { ResolveMarketList } from "@/components/admin/resolve-market-list";
 import { GrantRoleForm } from "@/components/admin/grant-role-form";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/components/ui/use-toast";
 import { Loader2 } from "lucide-react";
-import { client } from "@/app/client";
-
-const wallets = [
-  createWallet("io.metamask"),
-  createWallet("com.coinbase.wallet"),
-  createWallet("me.rainbow"),
-];
 
 export default function AdminPage() {
-  const account = useActiveAccount();
+  const { address } = useAccount();
   const { toast } = useToast();
   const [isAuthorized, setIsAuthorized] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -31,35 +21,35 @@ export default function AdminPage() {
 
   // Check if user is owner
   const { data: owner } = useReadContract({
-    contract,
-    method: "function owner() view returns (address)",
-    params: [],
+    address: contractAddress,
+    abi: contractAbi,
+    functionName: "owner",
   });
 
   // Check QUESTION_CREATOR_ROLE
   const { data: hasCreatorRole } = useReadContract({
-    contract,
-    method:
-      "function hasRole(bytes32 role, address account) view returns (bool)",
-    params: [
-      "0xef485be696bbc0c91ad541bbd553ffb5bd0e18dac30ba76e992dda23cb807a8a",
-      account?.address || "0x0",
+    address: contractAddress,
+    abi: contractAbi,
+    functionName: "hasRole",
+    args: [
+      "0xef485be696bbc0c91ad541bbd553ffb5bd0e18dac30ba76e992dda23cb807a8a" as `0x${string}`,
+      (address || "0x0") as `0x${string}`,
     ],
   });
 
   // Check QUESTION_RESOLVE_ROLE
   const { data: hasResolveRole } = useReadContract({
-    contract,
-    method:
-      "function hasRole(bytes32 role, address account) view returns (bool)",
-    params: [
-      "0xdcee1d35c83a32b436264a5c9afd68685c124f3f9097e87804c55410e67fc59a",
-      account?.address || "0x0",
+    address: contractAddress,
+    abi: contractAbi,
+    functionName: "hasRole",
+    args: [
+      "0xdcee1d35c83a32b436264a5c9afd68685c124f3f9097e87804c55410e67fc59a" as `0x${string}`,
+      (address || "0x0") as `0x${string}`,
     ],
   });
 
   useEffect(() => {
-    if (!account) {
+    if (!address) {
       setIsAuthorized(false);
       setIsLoading(false);
       toast({
@@ -70,7 +60,7 @@ export default function AdminPage() {
       return;
     }
 
-    if (owner && account.address.toLowerCase() === owner.toLowerCase()) {
+    if (owner && address.toLowerCase() === owner.toLowerCase()) {
       setIsOwner(true);
       setCanCreate(true);
       setCanResolve(true);
@@ -82,7 +72,7 @@ export default function AdminPage() {
     }
 
     setIsLoading(false);
-  }, [account, owner, hasCreatorRole, hasResolveRole, toast]);
+  }, [address, owner, hasCreatorRole, hasResolveRole, toast]);
 
   if (isLoading) {
     return (
@@ -102,15 +92,9 @@ export default function AdminPage() {
           <CardContent>
             <p>You do not have permission to access this page.</p>
             <div className="mt-4">
-              <ConnectButton
-                client={client}
-                chain={base}
-                wallets={wallets}
-                connectModal={{ size: "compact" }}
-                connectButton={{
-                  label: "Connect Wallet",
-                }}
-              />
+              <p className="text-sm text-gray-500">
+                Please connect your wallet with the appropriate permissions.
+              </p>
             </div>
           </CardContent>
         </Card>
@@ -122,15 +106,11 @@ export default function AdminPage() {
     <div className="min-h-screen container mx-auto p-4">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold">Policast Admin</h1>
-        <ConnectButton
-          client={client}
-          chain={base}
-          wallets={wallets}
-          connectModal={{ size: "compact" }}
-          connectButton={{
-            label: "Connect Wallet",
-          }}
-        />
+        <div className="text-sm">
+          {address
+            ? `Connected: ${address.slice(0, 6)}...${address.slice(-4)}`
+            : "Not connected"}
+        </div>
       </div>
       {canCreate && (
         <Card className="mb-6">
