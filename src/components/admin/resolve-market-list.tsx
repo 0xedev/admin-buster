@@ -485,28 +485,6 @@ export function ResolveMarketList() {
                             Resolved
                           </span>
                         </div>
-
-                        {market.totalParticipants > 0 && (
-                          <div className="text-sm text-gray-600">
-                            {winningsFullyDistributed ? (
-                              <span className="text-green-600 font-medium">
-                                ✓ All winnings distributed
-                              </span>
-                            ) : (
-                              <span>
-                                Distributed: {market.payoutIndex.toString()}/
-                                {market.totalParticipants.toString()}{" "}
-                                participants
-                                {remainingParticipants > 0 && (
-                                  <span className="text-orange-600 ml-2">
-                                    ({remainingParticipants.toString()}{" "}
-                                    remaining)
-                                  </span>
-                                )}
-                              </span>
-                            )}
-                          </div>
-                        )}
                       </div>
 
                       <Button
